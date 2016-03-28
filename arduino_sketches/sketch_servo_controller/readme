@@ -1,0 +1,16 @@
+Some notes on this software.
+
+note (1): Both quadrature encoder ISRs contain additional code to correct a quadrature sensor pulse problem on my sample motor.
+If the sensor had worked correctly, the following code would not be required in each of the ISRs:
+
+    _directionA_CCW = _lastSensorA == HIGH && _lastSensorB == LOW || _lastSensorA == LOW && _lastSensorB == HIGH;
+    if (!(_directionA_CCW ^ _directionB_CCW))
+    {
+      _directionCCW = _directionA_CCW;
+    }
+
+Instead, we would only need:
+
+	_directionCCW = _lastSensorA == HIGH && _lastSensorB == LOW || _lastSensorA == LOW && _lastSensorB == HIGH;
+
+
