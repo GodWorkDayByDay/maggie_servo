@@ -14,3 +14,6 @@ Instead, we would only need:
 	_directionCCW = _lastSensorA == HIGH && _lastSensorB == LOW || _lastSensorA == LOW && _lastSensorB == HIGH;
 
 
+note (2): Torque estimates are made by measuring the commanded current of the motor and using the values of the torque constant from the data-sheet of the motor together with the model of the transmission. These transmission models assume 100% efficiency, and accuracy of torque estimates and commands are limited by the friction in the drivetrain, so joint torque accuracy should be characterized where one is relying on it.
+
+
