@@ -1,19 +1,20 @@
 #include "position_controller.h"
 #include <TimerOne.h>
 //#include <MsTimer2.h>
-// #include <PID_v1.h> 
-
-//#define SERIAL_DEBUGGING
-
-//#define RADIANS_PER_SENSOR_TICK 0.0038929277
-#define TIMER1_MICRO_SECONDS 250000
-#define TIMER2_MILLI_SECONDS 250
 
 void setup();
 void loop();
 
 void timer1_CB();
 //void timer2_CB();
+
+void motorCB(uint8_t pwm, bool directionCCW);
+
+#ifdef SERIAL_DEBUGGING
+uint8_t _serialDebugDivider;
+MotorDebug _motorDebug;
+void printDebug();
+#endif
 
 void sensorA_ISR();
 void sensorB_ISR();
@@ -27,23 +28,13 @@ int motorDirPin = 7;
 
 uint8_t _pwm = 0;
 
-#ifdef SERIAL_DEBUGGING
-  char _serialDebugString[200];
-#endif
-
 // ISR globals
 volatile long _sensorCount, _lastSensorCount;
 volatile double _lastVelocity; 
 volatile bool _lastSensorA, _lastSensorB;
 volatile bool _directionCCW, _directionA_CCW, _directionB_CCW;
 
-
 PositionController _positionController;
-
-// double _pidInput;
-// double _pidOutput;
-// double _pidSetpoint;
-// PID _pid(&_pidInput, &_pidOutput, &_pidSetpoint, 10, 5, 3, DIRECT);
 
 bool toggle;
 
@@ -72,38 +63,35 @@ void setup()  {
   _lastVelocity = 0;
 
   _directionCCW = LOW; 
-   digitalWrite(motorDirPin, !_directionCCW); // CW
-
+  
   Timer1.initialize(TIMER1_MICRO_SECONDS);
   Timer1.attachInterrupt(timer1_CB);
 
   // MsTimer2::set(TIMER2_MILLI_SECONDS, timer2_CB);
   // MsTimer2::start();
 
-  // _pid.SetOutputLimits(-255,255);
-  // _pid.SetMode(AUTOMATIC);
-  // _pidInput = 0;
-  // _pidOutput = 0;
-  // _pidSetpoint = 6.28; // 360
-  //_pidSetpoint = 1 / RADIANS_PER_SENSOR_TICK; // 1 radian
-  //
-
 #ifdef SERIAL_DEBUGGING
   Serial.begin(115200);
+  _serialDebugDivider = 0;
 #endif
 
-  _pwm = 128; // test only!!!
+  _pwm = 0; // test only!!!
   analogWrite(pwmPin, _pwm);
+
+  double targetPosition = 2;
+  double targetVelocity = 3;
+  uint8_t feedforwardPWM = _positionController.calculateFeedforwardPWM(targetVelocity);
+  _positionController.setTargets(targetPosition, targetVelocity, feedforwardPWM);
 } 
 
 void loop()  
 { 
 
 #ifdef SERIAL_DEBUGGING
-  if (toggle) 
+  if (_serialDebugDivider > 25) 
   {
-    Serial.println(_serialDebugString);
-    toggle = false;
+    printDebug();
+    _serialDebugDivider = 0;
   }
 #endif
 
@@ -111,20 +99,31 @@ void loop()
 
 void timer1_CB() 
 {
-  double velocity = _positionController.calculateVelocity((long)_sensorCount, (long)_lastSensorCount, TIMER1_MICRO_SECONDS / 1E6);
-  double acceleration = _positionController.calculateAcceleration(velocity, (double)_lastVelocity, TIMER1_MICRO_SECONDS / 1E6);
-
-  _lastVelocity = velocity;
-  _lastSensorCount = _sensorCount; 
-
 #ifdef SERIAL_DEBUGGING
-  char velocity_str[6];
-  char acceleration_str[6];
-  dtostrf(velocity, 4, 2, velocity_str);
-  dtostrf(acceleration, 4, 2, acceleration_str);
-  sprintf(_serialDebugString, "PWM = %3d , Velocity = %s , Acceleration = %s, Sensor count = %ld Current = %d", _pwm, velocity_str, acceleration_str, _sensorCount, analogRead(A0));
-  toggle = !toggle;
+_serialDebugDivider++;
 #endif
+
+  _positionController.moveToGoal( _sensorCount,
+                                  _lastSensorCount,
+                                  // position, 
+                                  // velocity, 
+                                  // acceleration, 
+                                  motorCB
+                                  #ifdef SERIAL_DEBUGGING 
+                                    ,_motorDebug 
+                                    //,debugCB
+                                  #endif
+                                  );    
+
+  _lastSensorCount = _sensorCount; 
+}
+
+void motorCB(uint8_t pwm, bool directionCCW)
+{
+  _pwm = pwm;
+
+  digitalWrite(motorDirPin, !directionCCW); // CW
+  analogWrite(pwmPin, _pwm);
 }
 
 // void timer2_CB() 
@@ -154,3 +153,53 @@ void sensorB_ISR()
       _directionCCW = _directionB_CCW;
     }
 }
+
+#ifdef SERIAL_DEBUGGING
+
+// void printDebug2()
+// {
+//   char *title_str = "a test title: ";
+//   char *text_str;
+//   char value_str[7];
+
+//   text_str = (char *)malloc(strlen(title_str)+7);
+//   strcpy(text_str, title_str);
+//   dtostrf(_motorDebug.position, 4, 2, value_str);
+//   strcat(text_str, value_str);
+  
+//   Serial.println(text_str);
+//   free(text_str); 
+// }
+
+void printDebug()
+{
+    char serialDebugString[300];
+    char position_str[7];
+    char velocity_str[7];
+    char acceleration_str[7];
+    char position_error_str[7];
+    char velocity_adjusted_str[7];
+    char pid_output_str[7];
+
+    dtostrf(_motorDebug.position, 4, 2, position_str);
+    dtostrf(_motorDebug.velocity, 4, 2, velocity_str);
+    dtostrf(_motorDebug.acceleration, 4, 2, acceleration_str);
+    dtostrf(_motorDebug.positionError, 4, 2, position_error_str);
+    dtostrf(_motorDebug.adjustedVelocity, 4, 2, velocity_adjusted_str);
+    dtostrf(_motorDebug.pidOutput, 4, 2, pid_output_str);
+
+    sprintf(serialDebugString,  "velocity = %s, position = %s, acceleration = %s, positionError = %s, directionCCW = %c, adjustedVelocity = %s, pidOutput = %s, feedforwardPWM = %3d, Sensor count = %ld, current = %d", 
+              velocity_str,
+              position_str,
+              acceleration_str,
+              position_error_str,
+              _motorDebug.directionCCW == true ? '1' : '0',
+              velocity_adjusted_str,
+              pid_output_str,
+              _motorDebug.ffPwm,
+              _sensorCount,
+              analogRead(A0));
+
+    Serial.println(serialDebugString);
+}
+#endif
