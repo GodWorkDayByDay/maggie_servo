@@ -62,25 +62,17 @@ void setup()  {
   _sensorCount = _lastSensorCount = 0;
   _lastVelocity = 0;
 
-  _directionCCW = LOW; 
-  
   Timer1.initialize(TIMER1_MICRO_SECONDS);
   Timer1.attachInterrupt(timer1_CB);
-
-  // MsTimer2::set(TIMER2_MILLI_SECONDS, timer2_CB);
-  // MsTimer2::start();
 
 #ifdef SERIAL_DEBUGGING
   Serial.begin(115200);
   _serialDebugDivider = 0;
 #endif
 
-  _pwm = 0; // test only!!!
-  analogWrite(pwmPin, _pwm);
-
-  double targetPosition = 16.28;
-  double targetVelocity = 5;
-  //uint8_t feedforwardPWM = _positionController.calculateFeedforwardPWM(targetVelocity);
+  double targetPosition = -6.28;
+  double targetVelocity = 3;
+  
   _positionController.setTargets(targetPosition, targetVelocity);
 } 
 

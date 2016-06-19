@@ -21,6 +21,8 @@
 
 #define PROPORTIONAL_BAND_FACTOR 1
 
+#define POSITION_TOLERANCE 0.01
+
 #ifdef SERIAL_DEBUGGING
 typedef struct _MotorDebug {
 	double position;

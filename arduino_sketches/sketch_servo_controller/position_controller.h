@@ -24,9 +24,18 @@ public:
 						#endif
 						);
 	
-	uint8_t calculatePWM(double adjustedTargetVelocity);
+
 	double calculateVelocity(const volatile long &sensorCount, const volatile long &lastSensorCount, const double &interval);
 	double calculateAcceleration(const double &velocity, const volatile double &lastVelocity, const double &interval);
+
+private:
+	uint8_t calculatePWM(double adjustedTargetVelocity);
+	void setAdjustedTargetVelocity( double &velocity,
+									double &position
+									#ifdef SERIAL_DEBUGGING
+										,MotorDebug &motorDebug
+									#endif 
+									);
 
 private:
 	PIDController _pidController;
@@ -34,8 +43,6 @@ private:
 	volatile double _targetPosition;
 	volatile double _targetVelocity;
 	volatile double _adjustedTargetVelocity;
-
-	uint8_t _feedforwardPWM;
 
 	volatile double _lastVelocity;
 	volatile bool _lastDirection;

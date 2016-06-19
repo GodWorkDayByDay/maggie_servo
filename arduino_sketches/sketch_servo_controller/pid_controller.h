@@ -13,19 +13,16 @@
 #define MIN_PID_OUTPUT	-11.5
 
 #define PROPORTIONAL_PARAM			0 //(double)(1 / MOTOR_PWM_VELOCITY_FACTOR)
-#define INTEGRAL_PARAM				0.005
+#define INTEGRAL_PARAM				0.05
 #define DERIVATIVE_PARAM			0
 
 class PIDController {
 public:
 	PIDController();
 
-	double calculatePID(const double &input, const double &targetVelocity);
-	//double calculatePID(const double velocityError);
-	// void reset();
+	double calculatePID(const double &input, const double &targetVelocity, const bool hold);
 
 private:
-	// volatile double _lastVelocity;
 	volatile double _integralTerm;
 };
 

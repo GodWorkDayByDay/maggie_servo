@@ -12,7 +12,6 @@ void PositionController::setTargets(double &targetPosition, double &targetVeloci
 	_targetPosition = targetPosition;
 	_targetVelocity = targetVelocity;
 	_adjustedTargetVelocity = targetVelocity;
-	//_integralTerm = 0;
 }
 
 void PositionController::moveToGoal(const volatile long &sensorCount,
@@ -32,16 +31,16 @@ void PositionController::moveToGoal(const volatile long &sensorCount,
 
 	bool directionCCW = position > _targetPosition;
 
-	double proportionalBand = _targetPosition - (PROPORTIONAL_BAND_FACTOR * velocity);
-	if (position > proportionalBand)
-	{
-		// we're in the proportional band, so scale the velocity target
-		 _adjustedTargetVelocity *= proportionalBand / position; 
-	}
+	setAdjustedTargetVelocity(	velocity,
+								position
+								#ifdef SERIAL_DEBUGGING
+									,motorDebug
+								#endif 
+								);
 
-	double pidTerm = _pidController.calculatePID(velocity, (double)_adjustedTargetVelocity); 
+	double pidTerm = _pidController.calculatePID(velocity, (double)_adjustedTargetVelocity, positionError <= POSITION_TOLERANCE); 
 	
-	uint8_t volatile pwm = calculatePWM(pidTerm); // fmax(pidVelocity,feedForwardVelocity));
+	uint8_t volatile pwm = calculatePWM(pidTerm); 
 
 #ifdef SERIAL_DEBUGGING
 	motorDebug.position = position;
@@ -49,12 +48,42 @@ void PositionController::moveToGoal(const volatile long &sensorCount,
 	motorDebug.acceleration = acceleration;
 	motorDebug.positionError = positionError;
 	motorDebug.directionCCW = directionCCW;
-	motorDebug.proportionalBand = proportionalBand;
 	motorDebug.pidTerm = pidTerm;
 	motorDebug.adjustedTargetVelocity = _adjustedTargetVelocity;
 #endif	
 
-	motorCB(positionError <= 0.01 ? : pwm, directionCCW);
+	motorCB(positionError <= POSITION_TOLERANCE ? 0 : pwm, directionCCW);
+}
+
+///
+/// Scale the target velocity when within the proportional band.
+void PositionController::setAdjustedTargetVelocity( double &velocity,
+													double &position
+													#ifdef SERIAL_DEBUGGING
+														,MotorDebug &motorDebug
+													#endif 
+													)
+{
+	double proportionalBand;
+	if (_targetPosition < 0)
+	{
+		proportionalBand = _targetPosition + (PROPORTIONAL_BAND_FACTOR * velocity);
+		if (position < proportionalBand)
+		{
+		 	_adjustedTargetVelocity *= proportionalBand / position; 
+		}
+	}
+	else
+	{
+		proportionalBand = _targetPosition - (PROPORTIONAL_BAND_FACTOR * velocity);
+		if (position > proportionalBand)
+		{
+		 	_adjustedTargetVelocity *= proportionalBand / position; 
+		}
+	} 
+	#ifdef SERIAL_DEBUGGING
+		motorDebug.proportionalBand = proportionalBand;
+	#endif
 }
 
 ///
@@ -85,6 +114,5 @@ double PositionController::calculateAcceleration(const double &velocity, const v
 		if (velocity < 0)
 			acceleration *= -1;
 	}
-	
 	return acceleration;
 }
