@@ -78,10 +78,10 @@ void setup()  {
   _pwm = 0; // test only!!!
   analogWrite(pwmPin, _pwm);
 
-  double targetPosition = 2;
-  double targetVelocity = 3;
-  uint8_t feedforwardPWM = _positionController.calculateFeedforwardPWM(targetVelocity);
-  _positionController.setTargets(targetPosition, targetVelocity, feedforwardPWM);
+  double targetPosition = 16.28;
+  double targetVelocity = 5;
+  //uint8_t feedforwardPWM = _positionController.calculateFeedforwardPWM(targetVelocity);
+  _positionController.setTargets(targetPosition, targetVelocity);
 } 
 
 void loop()  
@@ -105,13 +105,9 @@ _serialDebugDivider++;
 
   _positionController.moveToGoal( _sensorCount,
                                   _lastSensorCount,
-                                  // position, 
-                                  // velocity, 
-                                  // acceleration, 
                                   motorCB
                                   #ifdef SERIAL_DEBUGGING 
                                     ,_motorDebug 
-                                    //,debugCB
                                   #endif
                                   );    
 
@@ -178,25 +174,27 @@ void printDebug()
     char velocity_str[7];
     char acceleration_str[7];
     char position_error_str[7];
-    char velocity_adjusted_str[7];
-    char pid_output_str[7];
+    char proportional_band_str[7];
+    char adjusted_target_velocity_str[7];
+    char pid_term_str[7];
 
     dtostrf(_motorDebug.position, 4, 2, position_str);
     dtostrf(_motorDebug.velocity, 4, 2, velocity_str);
     dtostrf(_motorDebug.acceleration, 4, 2, acceleration_str);
     dtostrf(_motorDebug.positionError, 4, 2, position_error_str);
-    dtostrf(_motorDebug.adjustedVelocity, 4, 2, velocity_adjusted_str);
-    dtostrf(_motorDebug.pidOutput, 4, 2, pid_output_str);
+    dtostrf(_motorDebug.proportionalBand, 4, 2, proportional_band_str);
+    dtostrf(_motorDebug.adjustedTargetVelocity, 4, 2, adjusted_target_velocity_str);
+    dtostrf(_motorDebug.pidTerm, 4, 2, pid_term_str);
 
-    sprintf(serialDebugString,  "velocity = %s, position = %s, acceleration = %s, positionError = %s, directionCCW = %c, adjustedVelocity = %s, pidOutput = %s, feedforwardPWM = %3d, Sensor count = %ld, current = %d", 
+    sprintf(serialDebugString,  "velocity = %s, position = %s, acceleration = %s, positionError = %s, directionCCW = %c, proportionalBand = %s, pidTerm = %s, adj targ Vel = %s, Sensor count = %ld, current = %d", 
               velocity_str,
               position_str,
               acceleration_str,
               position_error_str,
               _motorDebug.directionCCW == true ? '1' : '0',
-              velocity_adjusted_str,
-              pid_output_str,
-              _motorDebug.ffPwm,
+              proportional_band_str,
+              pid_term_str,
+              adjusted_target_velocity_str,
               _sensorCount,
               analogRead(A0));
 

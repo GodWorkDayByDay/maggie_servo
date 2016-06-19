@@ -15,7 +15,7 @@ class PositionController {
 public:
 	PositionController();
 	
-	void setTargets(double &targetPosition, double &targetVelocity, uint8_t &feedforwardPWM);
+	void setTargets(double &targetPosition, double &targetVelocity);
 	void moveToGoal(	const volatile long &sensorCount,
 						const volatile long &lastSensorCount,
 						void (*motorCB)(const uint8_t pwm, bool directionCCW)
@@ -24,7 +24,7 @@ public:
 						#endif
 						);
 	
-	uint8_t calculateFeedforwardPWM(const double &targetVelocity);
+	uint8_t calculatePWM(double adjustedTargetVelocity);
 	double calculateVelocity(const volatile long &sensorCount, const volatile long &lastSensorCount, const double &interval);
 	double calculateAcceleration(const double &velocity, const volatile double &lastVelocity, const double &interval);
 
@@ -33,10 +33,12 @@ private:
 
 	volatile double _targetPosition;
 	volatile double _targetVelocity;
+	volatile double _adjustedTargetVelocity;
+
 	uint8_t _feedforwardPWM;
 
 	volatile double _lastVelocity;
-	double _integralTerm;
+	volatile bool _lastDirection;
 };
 
 #endif

@@ -1,21 +1,18 @@
 #include "position_controller.h"
 
-PositionController::PositionController() : 	_integralTerm(0), 
-											_targetPosition(0), 
+PositionController::PositionController() : 	_targetPosition(0), 
 											_targetVelocity(0), 
-											_feedforwardPWM(0), 
 											_lastVelocity(0)
 {
 
 }
 
-void PositionController::setTargets(double &targetPosition, double &targetVelocity, uint8_t &feedforwardPWM)
+void PositionController::setTargets(double &targetPosition, double &targetVelocity)
 {
 	_targetPosition = targetPosition;
 	_targetVelocity = targetVelocity;
-	_feedforwardPWM = feedforwardPWM;
-
-	_integralTerm = 0;
+	_adjustedTargetVelocity = targetVelocity;
+	//_integralTerm = 0;
 }
 
 void PositionController::moveToGoal(const volatile long &sensorCount,
@@ -32,12 +29,19 @@ void PositionController::moveToGoal(const volatile long &sensorCount,
   	_lastVelocity = velocity;
 
 	double positionError = fabs(_targetPosition - position);
+
 	bool directionCCW = position > _targetPosition;
 
-	double _adjustedTargetVelocity = _targetVelocity;
-	double pidOutput = _pidController.CalculatePID(velocity, _adjustedTargetVelocity);
+	double proportionalBand = _targetPosition - (PROPORTIONAL_BAND_FACTOR * velocity);
+	if (position > proportionalBand)
+	{
+		// we're in the proportional band, so scale the velocity target
+		 _adjustedTargetVelocity *= proportionalBand / position; 
+	}
 
-	uint8_t volatile ffPwm = calculateFeedforwardPWM(pidOutput);
+	double pidTerm = _pidController.calculatePID(velocity, (double)_adjustedTargetVelocity); 
+	
+	uint8_t volatile pwm = calculatePWM(pidTerm); // fmax(pidVelocity,feedForwardVelocity));
 
 #ifdef SERIAL_DEBUGGING
 	motorDebug.position = position;
@@ -45,27 +49,27 @@ void PositionController::moveToGoal(const volatile long &sensorCount,
 	motorDebug.acceleration = acceleration;
 	motorDebug.positionError = positionError;
 	motorDebug.directionCCW = directionCCW;
-	motorDebug.adjustedVelocity = _adjustedTargetVelocity;
-	motorDebug.pidOutput = pidOutput;
-	motorDebug.ffPwm = ffPwm;
+	motorDebug.proportionalBand = proportionalBand;
+	motorDebug.pidTerm = pidTerm;
+	motorDebug.adjustedTargetVelocity = _adjustedTargetVelocity;
 #endif	
 
-	motorCB(ffPwm, false);
+	motorCB(positionError <= 0.01 ? : pwm, directionCCW);
 }
 
 ///
 /// Calculate PWM based on angle to goal and target velocity
-uint8_t PositionController::calculateFeedforwardPWM(const double &targetVelocity)
+uint8_t PositionController::calculatePWM(double adjustedTargetVelocity)
 {
 	// no load tests of Lynxmotion 12V 90 rpm motor reveal a deadbank of 16, and a velocity gradient of approximately 0.05 rad/s per PWM pulse.
-	return (fmin(targetVelocity, MOTOR_MAX_VELOCITY) / MOTOR_PWM_VELOCITY_FACTOR) + MOTOR_PWM_DEADBAND;
+	return (fmin(adjustedTargetVelocity, MOTOR_MAX_VELOCITY) / MOTOR_PWM_VELOCITY_FACTOR) + MOTOR_PWM_DEADBAND;
 }
 
 ///
 /// Calculate the velocity in radians/s
 double PositionController::calculateVelocity(const volatile long &sensorCount, const volatile long &lastSensorCount, const double &interval)
 {
-	return (interval == 0) ? 0 : ((double)(sensorCount - lastSensorCount)) * RADIANS_PER_SENSOR_TICK / interval;
+	return (interval == 0) ? 0 : fabs(((double)(sensorCount - lastSensorCount)) * RADIANS_PER_SENSOR_TICK / interval);
 }
 
 ///
